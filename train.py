@@ -21,13 +21,14 @@ from models.modeling import VisionTransformer, CONFIGS
 from utils.scheduler import WarmupLinearSchedule, WarmupCosineSchedule
 from utils.data_utils import get_loader
 from utils.dist_util import get_world_size
-
+import utils_losparse as ul
 
 logger = logging.getLogger(__name__)
 
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -75,7 +76,7 @@ def setup(args):
 
 def count_parameters(model):
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    return params/1000000
+    return params / 1000000
 
 
 def set_seed(args):
@@ -156,15 +157,15 @@ def train(args, model):
                                 weight_decay=args.weight_decay)
     t_total = args.num_steps
     if args.decay_type == "cosine":
-        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps_, t_total=t_total)
     else:
-        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps_, t_total=t_total)
 
     if args.fp16:
         model, optimizer = amp.initialize(models=model,
                                           optimizers=optimizer,
                                           opt_level=args.fp16_opt_level)
-        amp._amp_state.loss_scalers[0]._loss_scale = 2**20
+        amp._amp_state.loss_scalers[0]._loss_scale = 2 ** 20
 
     # Distributed training
     if args.local_rank != -1:
@@ -183,6 +184,16 @@ def train(args, model):
     set_seed(args)  # Added here for reproducibility (even between python 2 and 3)
     losses = AverageMeter()
     global_step, best_acc = 0, 0
+    ############################
+    #                          #
+    #          PRUNER          #
+    #                          #
+    ############################
+    pruner = ul.Pruner(model=model, args=args, total_step=args.max_train_steps,
+                       mask_param_name=['sparse'], pruner_name='PLATON',
+                       structured_method=args.structured_method, structured_direction=args.structured_direction)
+    print(f"  Successfully Initialize the pruner")
+
     while True:
         model.train()
         epoch_iterator = tqdm(train_loader,
@@ -204,13 +215,19 @@ def train(args, model):
                 loss.backward()
 
             if (step + 1) % args.gradient_accumulation_steps == 0:
-                losses.update(loss.item()*args.gradient_accumulation_steps)
+                losses.update(loss.item() * args.gradient_accumulation_steps)
                 if args.fp16:
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                 else:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 scheduler.step()
                 optimizer.step()
+
+                # Prune the sparse matrix
+                threshold, mask_threshold = pruner.update_and_pruning(model, global_step)
+                if global_step % args.record_steps == 0:
+                    print(f"The threshold is {threshold}.")
+
                 optimizer.zero_grad()
                 global_step += 1
 
@@ -273,7 +290,7 @@ def main():
                         help="Total number of training epochs to perform.")
     parser.add_argument("--decay_type", choices=["cosine", "linear"], default="cosine",
                         help="How to decay the learning rate.")
-    parser.add_argument("--warmup_steps", default=500, type=int,
+    parser.add_argument("--warmup_steps_", default=500, type=int,
                         help="Step of training to perform learning rate warmup for.")
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
                         help="Max gradient norm.")
@@ -293,6 +310,28 @@ def main():
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
                              "0 (default value): dynamic loss scaling.\n"
                              "Positive power of 2: static loss scaling value.\n")
+    #############################
+    #    Experiment Argument    #
+    #############################
+    parser.add_argument("--low_rank_parameter_ratio", type=float, default=0.05,
+                        help="parameter number of low rank matrix / parameter number of original matrix")
+    parser.add_argument("--model_zoo_dir", type=str, default="/mnt/t-qingru/model_zoo",
+                        help="parameter number of low rank matrix / parameter number of original matrix")
+    parser.add_argument("--ckpt_path", type=str, default=None,
+                        help="checkpoint path")
+    parser.add_argument("--ckpt_epoch", type=int, default=0, help="checkpoint epoch")
+
+    parser.add_argument("--initial_threshold", type=float, default=1.0)
+    parser.add_argument("--final_threshold", type=float, default=0.1)
+    parser.add_argument("--initial_warmup", type=int, default=1)
+    parser.add_argument("--final_warmup", type=int, default=3)
+    parser.add_argument("--warmup_steps", type=int, default=6400)
+    parser.add_argument("--beta1", type=float, default=0.85)
+    parser.add_argument("--beta2", type=float, default=1., help="disable uncertainty when 1.")
+    parser.add_argument("--deltaT", type=int, default=10)
+    parser.add_argument("--structured_method", type=str, default=None)
+    parser.add_argument("--structured_direction", type=str, default='row')
+    parser.add_argument("--record_steps", type=int, default=1000)
     args = parser.parse_args()
 
     # Setup CUDA, GPU & distributed training
@@ -321,6 +360,16 @@ def main():
     args, model = setup(args)
 
     # Training
+    # Substitute weights with low rank matrix and sparse matrix
+    allow_name = ['query', 'key', 'value', 'q_proj', 'k_proj', 'v_proj', 'out_proj', 'dense', 'attention', 'fc1', 'fc2']
+    block_name = ['pooler', 'classifier', 'LayerNorm', 'embeddings']
+    ul.substitute_layer_weights(module=model,
+                                allow_name=allow_name,
+                                block_name=block_name,
+                                parameter_ratio=args.low_rank_parameter_ratio,
+                                do_svd=True)
+    model = model.to(device)
+
     train(args, model)
 
 

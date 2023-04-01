@@ -189,7 +189,7 @@ def train(args, model):
     #          PRUNER          #
     #                          #
     ############################
-    pruner = ul.Pruner(model=model, args=args, total_step=args.max_train_steps,
+    pruner = ul.Pruner(model=model, args=args, total_step=t_total,
                        mask_param_name=['sparse'], pruner_name='PLATON',
                        structured_method=args.structured_method, structured_direction=args.structured_direction)
     print(f"  Successfully Initialize the pruner")
@@ -278,7 +278,7 @@ def main():
                         help="Total batch size for training.")
     parser.add_argument("--eval_batch_size", default=64, type=int,
                         help="Total batch size for eval.")
-    parser.add_argument("--eval_every", default=100, type=int,
+    parser.add_argument("--eval_every", default=500, type=int,
                         help="Run prediction on validation set every so many steps."
                              "Will always run one evaluation at the end of training.")
 
@@ -325,7 +325,7 @@ def main():
     parser.add_argument("--final_threshold", type=float, default=0.1)
     parser.add_argument("--initial_warmup", type=int, default=1)
     parser.add_argument("--final_warmup", type=int, default=3)
-    parser.add_argument("--warmup_steps", type=int, default=6400)
+    parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument("--beta1", type=float, default=0.85)
     parser.add_argument("--beta2", type=float, default=1., help="disable uncertainty when 1.")
     parser.add_argument("--deltaT", type=int, default=10)

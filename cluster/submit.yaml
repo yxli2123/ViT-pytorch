@@ -15,7 +15,7 @@ environment:
   setup:
     - pip install evaluate sklearn scipy
     - pip install accelerate==0.12.0 transformers datasets sentencepiece setuptools rouge-score nltk
-    - pip install tensorboard tensorboardX
+    - pip install tensorboard tensorboardX ml_collections
 
 storage:
   output:

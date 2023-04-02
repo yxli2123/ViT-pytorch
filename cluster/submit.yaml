@@ -1,0 +1,47 @@
+description: vitb16_cifar100
+
+target:
+  service: aml
+  # name: V100
+  name: V10032G
+  # name: A100EastUS
+  # name: openai-A10080G
+  # name: A10080G
+  # name: gpu-v100-32g
+  # name: gpu-a100-80g
+
+environment:
+  image: pytorch/pytorch:1.9.1-cuda11.1-cudnn8-devel
+  setup:
+    - pip install evaluate sklearn scipy
+    - pip install accelerate==0.12.0 transformers datasets sentencepiece setuptools rouge-score nltk
+    - pip install tensorboard tensorboardX
+
+storage:
+  output:
+    storage_account_name: tsinterns
+    container_name: t-qingru
+    mount_dir: /mnt/t-qingru
+
+code:
+  local_dir: ../
+
+jobs:
+- name: vitb16_cifar100
+  sku: 1xG8
+  process_count_per_node: 1
+  submit_args:
+    container_args:
+      cpus: 32
+  command:
+    - CUDA_VISIBLE_DEVICES=0 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.01 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.29 --low_rank_parameter_ratio 0.01 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=1 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.02 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.28 --low_rank_parameter_ratio 0.02 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=2 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_le0.05 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.25 --low_rank_parameter_ratio 0.05 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=3 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.10 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.20 --low_rank_parameter_ratio 0.10 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=4 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.15 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.15 --low_rank_parameter_ratio 0.15 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=5 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.20 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.10 --low_rank_parameter_ratio 0.20 --initial_warmup 2 --final_warmup 8 &
+    - CUDA_VISIBLE_DEVICES=6 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.25 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.05 --low_rank_parameter_ratio 0.25 --initial_warmup 2 --final_warmup 8 &
+    - sleep 1800
+    - CUDA_VISIBLE_DEVICES=7 python3 train.py --name cifar100_500 --dataset cifar100 --model_type ViT-B_16 --pretrained_dir /mnt/t-qingru/checkpoint_vit/ViT-B_16.npz --output_dir /mnt/t-qingru/vit/r0.3_lr0.28 --num_steps 20000 --train_batch_size 512 --learning_rate 3e-2 --deltaT 80 --final_threshold 0.02 --low_rank_parameter_ratio 0.28 --initial_warmup 2 --final_warmup 8
+
+

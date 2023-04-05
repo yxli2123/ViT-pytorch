@@ -155,7 +155,7 @@ def train(args, model):
                                 lr=args.learning_rate,
                                 momentum=0.9,
                                 weight_decay=args.weight_decay)
-    t_total = args.num_steps
+    t_total = args.num_steps * args.gradient_accumulation_steps
     if args.decay_type == "cosine":
         scheduler = WarmupCosineSchedule(optimizer, warmup_steps=args.warmup_steps_, t_total=t_total)
     else:

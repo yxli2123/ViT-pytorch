@@ -327,7 +327,7 @@ def main():
     parser.add_argument("--final_warmup", type=int, default=3)
     parser.add_argument("--warmup_steps", type=int, default=1000)
     parser.add_argument("--beta1", type=float, default=0.85)
-    parser.add_argument("--beta2", type=float, default=1., help="disable uncertainty when 1.")
+    parser.add_argument("--beta2", type=float, default=0.85, help="disable uncertainty when 1.")
     parser.add_argument("--deltaT", type=int, default=10)
     parser.add_argument("--structured_method", type=str, default=None)
     parser.add_argument("--structured_direction", type=str, default='row')
